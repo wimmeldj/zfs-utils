@@ -1,0 +1,111 @@
+diff --unified --recursive --text zfs-2.0.0/cmd/zed/zed.d/history_event-zfs-list-cacher.sh.in zfs-2.0.0-modified/cmd/zed/zed.d/history_event-zfs-list-cacher.sh.in
+--- zfs-2.0.0/cmd/zed/zed.d/history_event-zfs-list-cacher.sh.in	2020-08-30 16:11:04.294274630 -0500
++++ zfs-2.0.0-modified/cmd/zed/zed.d/history_event-zfs-list-cacher.sh.in	2020-12-26 22:09:43.732271452 -0500
+@@ -51,7 +51,8 @@
+               org.openzfs.systemd:requires-mounts-for| \
+               org.openzfs.systemd:before|org.openzfs.systemd:after| \
+               org.openzfs.systemd:wanted-by|org.openzfs.systemd:required-by| \
+-              org.openzfs.systemd:nofail|org.openzfs.systemd:ignore \
++              org.openzfs.systemd:nofail|org.openzfs.systemd:ignore| \
++              org.openzfs.systemd:keyname \
+             ) ;;
+             *) exit 0 ;;
+         esac
+@@ -71,7 +72,8 @@
+ ,org.openzfs.systemd:requires,org.openzfs.systemd:requires-mounts-for\
+ ,org.openzfs.systemd:before,org.openzfs.systemd:after\
+ ,org.openzfs.systemd:wanted-by,org.openzfs.systemd:required-by\
+-,org.openzfs.systemd:nofail,org.openzfs.systemd:ignore"
++,org.openzfs.systemd:nofail,org.openzfs.systemd:ignore\
++,org.openzfs.systemd:keyname"
+ 
+ "${ZFS}" list -H -t filesystem -o $PROPS -r "${ZEVENT_POOL}" > "${FSLIST_TMP}"
+ 
+diff --unified --recursive --text zfs-2.0.0/cmd/zed/zed.d/zed.rc zfs-2.0.0-modified/cmd/zed/zed.d/zed.rc
+--- zfs-2.0.0/cmd/zed/zed.d/zed.rc	2020-10-19 13:24:52.222677730 -0500
++++ zfs-2.0.0-modified/cmd/zed/zed.d/zed.rc	2020-12-27 20:58:35.204127774 -0500
+@@ -118,7 +118,7 @@
+ # Otherwise, if ZED_SYSLOG_SUBCLASS_EXCLUDE is set, the
+ # matching subclasses are excluded from logging.
+ #ZED_SYSLOG_SUBCLASS_INCLUDE="checksum|scrub_*|vdev.*"
+-ZED_SYSLOG_SUBCLASS_EXCLUDE="history_event"
++#ZED_SYSLOG_SUBCLASS_EXCLUDE="history_event"
+ 
+ ##
+ # Use GUIDs instead of names when logging pool and vdevs
+Only in zfs-2.0.0-modified/etc/systemd/system-generators: zfs-mount-generator
+diff --unified --recursive --text zfs-2.0.0/etc/systemd/system-generators/zfs-mount-generator.in zfs-2.0.0-modified/etc/systemd/system-generators/zfs-mount-generator.in
+--- zfs-2.0.0/etc/systemd/system-generators/zfs-mount-generator.in	2020-10-08 11:41:58.393264141 -0500
++++ zfs-2.0.0-modified/etc/systemd/system-generators/zfs-mount-generator.in	2020-12-28 00:01:43.094309474 -0500
+@@ -105,6 +105,7 @@
+   p_systemd_requiredby="${18}"
+   p_systemd_nofail="${19}"
+   p_systemd_ignore="${20}"
++  p_systemd_keyname="${21}"
+ 
+   # Minimal pre-requisites to mount a ZFS dataset
+   # By ordering before zfs-mount.service, we avoid race conditions.
+@@ -157,6 +158,11 @@
+     requiredmounts="RequiresMountsFor=${p_systemd_requiresmountsfor}"
+   fi
+ 
++  if [ -n "${p_systemd_keyname}" ] && \
++      [ "${p_systemd_keyname}" != "-" ]; then
++    keyname="zfs:${p_systemd_keyname}"
++  fi
++
+   # Handle encryption
+   if [ -n "${p_encroot}" ] &&
+       [ "${p_encroot}" != "-" ] ; then
+@@ -171,10 +177,21 @@
+         fi
+         keyloadscript="@sbindir@/zfs load-key \"${dataset}\""
+       elif [ "${p_keyloc}" = "prompt" ] ; then
++          [ -n "${keyname}" ] && \
++            displayname=$(printf "${keyname}" | cut -d ":" -f 2-) || \
++            displayname="${dataset}"
+         keyloadscript="\
++systemd-ask-password\
++  --accept-cached\
++  ${keyname:+--keyname=\"${keyname}}\"\
++  --id=\"zfs:${dataset}\"\
++  \"Enter passphrase for ${dataset}:\"|\
++  @sbindir@/zfs load-key \"${dataset}\" && exit 0;\
+ count=0;\
+-while [ \$\$count -lt 3 ];do\
+-  systemd-ask-password --id=\"zfs:${dataset}\"\
++while [ \$\$count -lt 2 ];do\
++  systemd-ask-password\
++    ${keyname:+--keyname=\"${keyname}}\"\
++    --id=\"zfs:${dataset}\"\
+     \"Enter passphrase for ${dataset}:\"|\
+     @sbindir@/zfs load-key \"${dataset}\" && exit 0;\
+   count=\$\$((count + 1));\
+@@ -219,6 +236,7 @@
+ ${keymountdep}
+ 
+ [Service]
++KeyringMode=shared
+ Type=oneshot
+ RemainAfterExit=yes
+ # This avoids a dependency loop involving systemd-journald.socket if this
+diff --unified --recursive --text zfs-2.0.0/man/man8/zfs-mount-generator.8.in zfs-2.0.0-modified/man/man8/zfs-mount-generator.8.in
+--- zfs-2.0.0/man/man8/zfs-mount-generator.8.in	2020-10-08 11:41:58.725275187 -0500
++++ zfs-2.0.0-modified/man/man8/zfs-mount-generator.8.in	2020-12-27 21:42:06.994130562 -0500
+@@ -184,6 +184,16 @@
+ If set to
+ .BR on ,
+ do not generate a mount unit for this dataset.
++.TP 4
++.BR org.openzfs.systemd:keyname = keyname
++Encrypted datasets with a keylocation of
++.BR prompt
++can have their password cached for 2.5 minutes by
++.BR systemd.ask-password(1)
++in the root user's kernel keyring. If a password already exists in the
++cache and it is successfully loaded for a dataset, no prompt will be
++given. So multiple datasets - even those that don't share a common
++parent - can be unlocked with one password entry.
+ 
+ .RE
+ See also
