@@ -30,7 +30,7 @@ validpgpkeys=('4F3BA9AB6D1F8D683DC2DFB56AD860EED4598027'  # Tony Hutter (GPG key
 
 prepare() {
     cd "${srcdir}"/zfs-${pkgver}
-    patch --strip=1 --input=../systemd-keyname.patch
+    patch --strip=1 --input=systemd-keyname.patch
     
     # pyzfs is not built, but build system tries to check for python anyway
     ln -sf /bin/true python3-fake

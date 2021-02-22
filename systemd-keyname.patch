@@ -1,6 +1,6 @@
 diff --unified --recursive --text zfs-2.0.0/cmd/zed/zed.d/history_event-zfs-list-cacher.sh.in zfs-2.0.0-modified/cmd/zed/zed.d/history_event-zfs-list-cacher.sh.in
 --- zfs-2.0.0/cmd/zed/zed.d/history_event-zfs-list-cacher.sh.in	2020-08-30 16:11:04.294274630 -0500
-+++ zfs-2.0.0-modified/cmd/zed/zed.d/history_event-zfs-list-cacher.sh.in	2020-12-26 22:09:43.732271452 -0500
++++ zfs-2.0.0-modified/cmd/zed/zed.d/history_event-zfs-list-cacher.sh.in	2021-02-22 01:53:07.489399388 -0500
 @@ -51,7 +51,8 @@
                org.openzfs.systemd:requires-mounts-for| \
                org.openzfs.systemd:before|org.openzfs.systemd:after| \
@@ -23,7 +23,7 @@ diff --unified --recursive --text zfs-2.0.0/cmd/zed/zed.d/history_event-zfs-list
  
 diff --unified --recursive --text zfs-2.0.0/cmd/zed/zed.d/zed.rc zfs-2.0.0-modified/cmd/zed/zed.d/zed.rc
 --- zfs-2.0.0/cmd/zed/zed.d/zed.rc	2020-10-19 13:24:52.222677730 -0500
-+++ zfs-2.0.0-modified/cmd/zed/zed.d/zed.rc	2020-12-27 20:58:35.204127774 -0500
++++ zfs-2.0.0-modified/cmd/zed/zed.d/zed.rc	2021-02-22 02:01:53.660936758 -0500
 @@ -118,7 +118,7 @@
  # Otherwise, if ZED_SYSLOG_SUBCLASS_EXCLUDE is set, the
  # matching subclasses are excluded from logging.
@@ -33,10 +33,9 @@ diff --unified --recursive --text zfs-2.0.0/cmd/zed/zed.d/zed.rc zfs-2.0.0-modif
  
  ##
  # Use GUIDs instead of names when logging pool and vdevs
-Only in zfs-2.0.0-modified/etc/systemd/system-generators: zfs-mount-generator
 diff --unified --recursive --text zfs-2.0.0/etc/systemd/system-generators/zfs-mount-generator.in zfs-2.0.0-modified/etc/systemd/system-generators/zfs-mount-generator.in
 --- zfs-2.0.0/etc/systemd/system-generators/zfs-mount-generator.in	2020-10-08 11:41:58.393264141 -0500
-+++ zfs-2.0.0-modified/etc/systemd/system-generators/zfs-mount-generator.in	2020-12-28 00:01:43.094309474 -0500
++++ zfs-2.0.0-modified/etc/systemd/system-generators/zfs-mount-generator.in	2021-02-22 01:56:12.119731882 -0500
 @@ -105,6 +105,7 @@
    p_systemd_requiredby="${18}"
    p_systemd_nofail="${19}"
@@ -57,31 +56,26 @@ diff --unified --recursive --text zfs-2.0.0/etc/systemd/system-generators/zfs-mo
    # Handle encryption
    if [ -n "${p_encroot}" ] &&
        [ "${p_encroot}" != "-" ] ; then
-@@ -171,10 +177,21 @@
-         fi
+@@ -172,11 +178,16 @@
          keyloadscript="@sbindir@/zfs load-key \"${dataset}\""
        elif [ "${p_keyloc}" = "prompt" ] ; then
-+          [ -n "${keyname}" ] && \
-+            displayname=$(printf "${keyname}" | cut -d ":" -f 2-) || \
-+            displayname="${dataset}"
          keyloadscript="\
-+systemd-ask-password\
-+  --accept-cached\
-+  ${keyname:+--keyname=\"${keyname}}\"\
-+  --id=\"zfs:${dataset}\"\
-+  \"Enter passphrase for ${dataset}:\"|\
-+  @sbindir@/zfs load-key \"${dataset}\" && exit 0;\
++use_cache=true;\
  count=0;\
 -while [ \$\$count -lt 3 ];do\
 -  systemd-ask-password --id=\"zfs:${dataset}\"\
-+while [ \$\$count -lt 2 ];do\
++while [ \$\$count -lt 4 ];do\
 +  systemd-ask-password\
++    ${use_cache:+--accept-cached}\
 +    ${keyname:+--keyname=\"${keyname}}\"\
 +    --id=\"zfs:${dataset}\"\
      \"Enter passphrase for ${dataset}:\"|\
      @sbindir@/zfs load-key \"${dataset}\" && exit 0;\
++  unset use_cache;\
    count=\$\$((count + 1));\
-@@ -219,6 +236,7 @@
+ done;\
+ exit 1"
+@@ -219,6 +230,7 @@
  ${keymountdep}
  
  [Service]
@@ -91,7 +85,7 @@ diff --unified --recursive --text zfs-2.0.0/etc/systemd/system-generators/zfs-mo
  # This avoids a dependency loop involving systemd-journald.socket if this
 diff --unified --recursive --text zfs-2.0.0/man/man8/zfs-mount-generator.8.in zfs-2.0.0-modified/man/man8/zfs-mount-generator.8.in
 --- zfs-2.0.0/man/man8/zfs-mount-generator.8.in	2020-10-08 11:41:58.725275187 -0500
-+++ zfs-2.0.0-modified/man/man8/zfs-mount-generator.8.in	2020-12-27 21:42:06.994130562 -0500
++++ zfs-2.0.0-modified/man/man8/zfs-mount-generator.8.in	2021-02-22 01:56:17.849746584 -0500
 @@ -184,6 +184,16 @@
  If set to
  .BR on ,
