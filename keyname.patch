@@ -97,23 +97,23 @@ diff --unified --recursive zfs-2.0.3/etc/systemd/system-generators/zfs-mount-gen
 -  count=\$\$((count + 1));\
 -done;\
 -exit 1"
-+keyavail=\"\";                                                            \
-+keyctl request user \"${keyname}\" && keyavail=t;                         \
-+                                                                          \
-+[ ! -z \$\$keyavail ] &&                                                  \
-+  keyctl print \$\$(keyctl request user \"${keyname}\") |                 \
-+    @sbindir@/zfs load-key \"${dataset}\" && exit 0;                      \
-+                                                                          \
-+count=0;                                                                  \
-+while [ \$\$count -lt 3 ]; do                                             \
-+  secret=\$\$(systemd-ask-password \"Enter passphrase for ${dataset}:\"); \
-+  echo -n \"\$\${secret}\" | @sbindir@/zfs load-key \"${dataset}\" &&     \
-+    k=\$\$(keyctl add user \"${keyname}\" \"\$\${secret}\" @u) &&         \
-+    keyctl timeout \"\$\${k}\" 300 &&                                     \
-+    exit 0;                                                               \
-+  count=\$\$((count + 1));                                                \
-+done;                                                                     \
-+exit 1;                                                                   \
++keyavail=\"\";                                                                        \
++keyctl request user \"${keyname}\" && keyavail=t;                                     \
++                                                                                      \
++[ ! -z \$\$keyavail ] &&                                                              \
++  keyctl print \$\$(keyctl request user \"${keyname}\") |                             \
++    @sbindir@/zfs load-key \"${dataset}\" && exit 0;                                  \
++                                                                                      \
++count=0;                                                                              \
++while [ \$\$count -lt 3 ]; do                                                         \
++  secret=\$\$(systemd-ask-password --timeout=0 \"Enter passphrase for ${dataset}:\"); \
++  echo -n \"\$\${secret}\" | @sbindir@/zfs load-key \"${dataset}\" &&                 \
++    k=\$\$(keyctl add user \"${keyname}\" \"\$\${secret}\" @u) &&                     \
++    keyctl timeout \"\$\${k}\" 300 &&                                                 \
++    exit 0;                                                                           \
++  count=\$\$((count + 1));                                                            \
++done;                                                                                 \
++exit 1;                                                                               \
 +"
        else
          printf 'zfs-mount-generator: (%s) invalid keylocation\n' \
